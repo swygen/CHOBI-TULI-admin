@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin Panel - Uploads List</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f4f7f8;
+    margin: 0; padding: 20px;
+    color: #333;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 25px;
+  }
+  table {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    border-collapse: collapse;
+    box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+    vertical-align: middle;
+  }
+  th {
+    background: #007bff;
+    color: white;
+    font-weight: 600;
+  }
+  tr:hover {
+    background: #f1f9ff;
+  }
+  img.thumb {
+    max-width: 70px;
+    max-height: 70px;
+    border-radius: 6px;
+    cursor: pointer;
+    object-fit: cover;
+  }
+  @media (max-width: 600px) {
+    table, thead, tbody, th, td, tr {
+      display: block;
+    }
+    thead tr {
+      display: none;
+    }
+    tr {
+      margin-bottom: 15px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.05);
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+    }
+    td {
+      padding-left: 50%;
+      position: relative;
+      border-bottom: none;
+      text-align: right;
+    }
+    td::before {
+      position: absolute;
+      top: 12px;
+      left: 15px;
+      width: 45%;
+      white-space: nowrap;
+      font-weight: 600;
+      content: attr(data-label);
+      text-align: left;
+    }
+    img.thumb {
+      max-width: 100%;
+      height: auto;
+    }
+  }
+  #loading {
+    text-align: center;
+    font-size: 1.2rem;
+    margin-top: 40px;
+    color: #666;
+  }
+</style>
+</head>
+<body>
+
+<h1>Admin Panel - Uploaded Photos List</h1>
+<div id="loading">Loading data...</div>
+
+<table id="uploadsTable" style="display:none;">
+  <thead>
+    <tr>
+      <th>নাম</th>
+      <th>Whatsapp নম্বর</th>
+      <th>ক্যাপশন</th>
+      <th>ছবি</th>
+      <th>সাবমিশন সময়</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+</table>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<script>
+  // Firebase config তোমার দেওয়া অনুযায়ী বসাও
+  const firebaseConfig = {
+    apiKey: "AIzaSyChZH6yY3nCIV-CXyQr0aTomBxy_V4HnKM",
+    authDomain: "mbbazar-bd.firebaseapp.com",
+    projectId: "mbbazar-bd",
+    storageBucket: "mbbazar-bd.firebasestorage.app",
+    messagingSenderId: "528931661008",
+    appId: "1:528931661008:web:a0b60c31465619b6906ad5",
+    measurementId: "G-6X66JBN082"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const loadingDiv = document.getElementById("loading");
+  const table = document.getElementById("uploadsTable");
+  const tbody = document.getElementById("tableBody");
+
+  // ফাংশন: ডেটা নিয়ে আসা এবং টেবিলে দেখানো
+  function fetchUploads() {
+    db.collection("uploads")
+      .orderBy("timestamp", "desc")
+      .get()
+      .then(snapshot => {
+        if (snapshot.empty) {
+          loadingDiv.textContent = "কোনো আবেদন পাওয়া যায়নি।";
+          return;
+        }
+        loadingDiv.style.display = "none";
+        table.style.display = "table";
+
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const tr = document.createElement("tr");
+
+          // সাবমিশন সময় ফরম্যাট (যদি থাকে)
+          let dateStr = "-";
+          if (data.timestamp && data.timestamp.toDate) {
+            const dateObj = data.timestamp.toDate();
+            dateStr = dateObj.toLocaleString("bn-BD", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit"
+            });
+          }
+
+          tr.innerHTML = `
+            <td data-label="নাম">${escapeHtml(data.name || "-")}</td>
+            <td data-label="Whatsapp নম্বর">${escapeHtml(data.whatsapp || "-")}</td>
+            <td data-label="ক্যাপশন">${escapeHtml(data.caption || "-")}</td>
+            <td data-label="ছবি">
+              ${data.imageUrl ? `<img class="thumb" src="${data.imageUrl}" alt="ছবি" title="ছবি দেখুন" onclick="window.open('${data.imageUrl}', '_blank')">` : "-"}
+            </td>
+            <td data-label="সাবমিশন সময়">${dateStr}</td>
+          `;
+
+          tbody.appendChild(tr);
+        });
+      })
+      .catch(err => {
+        loadingDiv.textContent = "ডেটা লোড করতে সমস্যা হয়েছে: " + err.message;
+      });
+  }
+
+  // XSS প্রতিরোধে সিম্পল ইস্কেপ ফাংশন
+  function escapeHtml(text) {
+    if (!text) return "";
+    return text.replace(/[&<>"']/g, function(m) {
+      return ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[m];
+    });
+  }
+
+  fetchUploads();
+</script>
+
+</body>
+</html>
